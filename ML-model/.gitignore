@@ -1,0 +1,16 @@
+# Virtual Environment
+venv/
+
+# Python Cache
+__pycache__/
+**/__pycache__/
+*.pyc
+
+# Generated Media
+generated_clips/
+
+# Generated Graphs/Plots
+*graph.png
+
+# Machine Learning Data
+*.pkl
