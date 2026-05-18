@@ -11,19 +11,41 @@ class GlobalState:
         self.lock = threading.Lock()
         
         # --- THE MEMORY VARIABLES ---
-        self.current_stress = 0.5        # Default neutral stress
+        # Now stores the full spectrum of brainwaves for the RAG frontend
+        self.current_metrics = {
+            "theta": 0.0,
+            "alpha": 0.0,
+            "beta": 0.0,
+            "stress_ratio": 1.0,
+            "stress_score": 0.5
+        }
         self.latest_music_file = None    # Path to the newest .wav
         self.is_session_active = False   # Is the system running?
 
-    def update_stress(self, score):
+        # --- NEW: Track the active user ---
+        self.current_person_id = "default_user"
+
+        # --- NEW: The Sync Token ---
+        self.generation_count = 0
+
+    # Add these two new functions at the bottom of the class:
+    def increment_generation(self):
+        with self.lock:
+            self.generation_count += 1
+
+    def get_generation_count(self):
+        with self.lock:
+            return self.generation_count
+
+    def update_metrics(self, metrics_dict):
         """Called by Brain or API to update current user status"""
         with self.lock:
-            self.current_stress = score
+            self.current_metrics.update(metrics_dict)
 
-    def get_stress(self):
-        """Called by AI to decide what music to play next"""
+    def get_metrics(self):
+        """Called by API when React/RAG asks for the brainwaves"""
         with self.lock:
-            return self.current_stress
+            return self.current_metrics.copy() # Return a copy to prevent thread collisions
 
     def set_latest_file(self, filename):
         """Called by AI when a new song is finished"""
@@ -31,7 +53,7 @@ class GlobalState:
             self.latest_music_file = filename
 
     def get_latest_file(self):
-        """Called by API when Java/Frontend asks for the song"""
+        """Called by API when React asks for the song"""
         with self.lock:
             return self.latest_music_file
 
