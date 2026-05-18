@@ -163,23 +163,36 @@ class EEGProcessor:
         return np.array(eeg_buffer)
 
     def get_stress_index(self):
-        """Captures data, runs FFT, and returns the Alpha/Beta ratio."""
+        """Captures data, runs FFT, filters artifacts, and returns full band metrics."""
         data = self.capture_one_second_window()
-        if data is None:
-            return 1.0 # Default fallback
+        
+        # 1. Artifact Rejection & Fallback
+        if data is None or np.max(np.abs(data)) > 800:
+            if data is not None:
+                print("[Warning] Artifact detected (Movement/Hardware). Dropping frame.")
+            return {"theta": 0.1, "alpha": 0.1, "beta": 0.1, "stress_ratio": 1.0, "stress_score": 0.5}
             
-        # Welch's method to extract frequencies
+        # 2. Welch's method to extract frequencies
         freqs, psd = welch(data, fs=self.sample_rate, nperseg=len(data))
         
-        # Isolate bands
+        # 3. Isolate all 3 bands
+        theta_idx = np.where((freqs >= 4) & (freqs <= 7))
         alpha_idx = np.where((freqs >= 8) & (freqs <= 12))
         beta_idx = np.where((freqs >= 13) & (freqs <= 30))
         
-        alpha_power = np.mean(psd[alpha_idx])
-        beta_power = np.mean(psd[beta_idx])
+        theta_power = np.mean(psd[theta_idx]) if len(psd[theta_idx]) > 0 else 0.1
+        alpha_power = np.mean(psd[alpha_idx]) if len(psd[alpha_idx]) > 0 else 0.1
+        beta_power = np.mean(psd[beta_idx]) if len(psd[beta_idx]) > 0 else 0.1
         
-        if beta_power == 0:
-            return 1.0
-            
-        alpha_beta_ratio = alpha_power / beta_power
-        return alpha_beta_ratio
+        # 4. Calculate final metrics
+        ratio = alpha_power / beta_power if beta_power > 0 else 1.0
+        score = 1.0 / (1.0 + ratio)
+        
+        # 5. Return the exact dictionary the React API expects
+        return {
+            "theta": float(theta_power),
+            "alpha": float(alpha_power),
+            "beta": float(beta_power),
+            "stress_ratio": float(ratio),
+            "stress_score": float(score)
+        }
